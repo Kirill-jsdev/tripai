@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@openai/agents": "^0.14.2",
     "express": "^5.2.1"
   }
 }
