@@ -3,5 +3,8 @@ POST http://localhost:3000/chat
 Content-Type: application/json
 
 {
+  "channel": "telegram",
+  "travelAgentId": "agent-001",
+  "customerId": "user-123",
   "message": "Hello, how are you?"
 }

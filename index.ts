@@ -2,15 +2,16 @@ import 'dotenv/config';
 import express from 'express';
 import { run } from '@openai/agents';
 import { tripAgent } from './ai/agent.js';
+import type { ChatRequest } from './types/chat.js';
 
 const app = express();
 app.use(express.json());
 
 app.post('/chat', async (req, res) => {
-  const { message } = req.body;
+  const { channel, travelAgentId, customerId, message } = req.body as ChatRequest;
 
-  if (!message) {
-    return res.status(400).json({ error: 'message is required' });
+  if (!channel || !travelAgentId || !customerId || !message) {
+    return res.status(400).json({ error: 'channel, travelAgentId, customerId and message are required' });
   }
 
   const result = await run(tripAgent, message);
