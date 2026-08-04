@@ -1,14 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
-import { Agent, run } from '@openai/agents';
+import { run } from '@openai/agents';
+import { tripAgent } from './ai/agent.js';
 
 const app = express();
 app.use(express.json());
-
-const agent = new Agent({
-  name: 'TripAI Assistant',
-  instructions: 'You are a helpful travel assistant. Help users plan trips, find destinations, and answer travel-related questions.',
-});
 
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
@@ -17,7 +13,7 @@ app.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
 
-  const result = await run(agent, message);
+  const result = await run(tripAgent, message);
   res.json({ reply: result.finalOutput });
 });
 
