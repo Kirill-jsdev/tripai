@@ -14,29 +14,87 @@ state and be testable via a `.http` file in `/api-tests`.
 - Every request calls `run(tripAgent, message)` with **no conversation
   history** — each message is treated as brand new, and the response isn't
   persisted anywhere.
-- No Supabase / database integration yet.
+- Supabase project created; `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+  are in `.env`; `db/supabaseClient.ts` exports a configured client.
+  No tables exist yet.
 - No MCP servers or external APIs (flights, hotels) wired into the agent.
 - No escalation-to-human logic.
 
-## Step 1 — Supabase project & schema
+## Decisions (resolved 2026-08-05)
 
-- Create/confirm the Supabase project and add its URL + service key to
-  `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
-- Design the schema:
-  - `conversations` — id, `channel`, `travel_agent_id`, `customer_id`,
-    unique on `(channel, travel_agent_id, customer_id)`, timestamps.
-  - `messages` — id, `conversation_id` (FK), `role` (`user`/`assistant`),
-    `content`, `created_at`.
-- Write the SQL migration (Supabase SQL editor or a `supabase/` migrations
-  folder — decide which once Supabase CLI usage is confirmed).
-- Add `@supabase/supabase-js` dependency and a small `db/supabaseClient.ts`.
+These were open forks between the original plan and ideas pulled from
+`SUPABASE_PLAN.md`. Resolved so Step 1 can proceed unambiguously:
+
+- **Schema shape: single `conversations` table with a `chat JSONB` column**
+  (not a separate `messages` table). Simpler to read the whole history in
+  one row. Requirement: appends must be atomic and safe under concurrent
+  requests to the same conversation — the specific mechanism (a single
+  `UPDATE` using jsonb `||` concat, an RPC function, a transaction,
+  optimistic locking, etc.) is an implementation decision, not a planning
+  one, and should be made when `db/conversations.ts` is actually written.
+  Trade-off accepted: per-message querying/indexing (e.g. searching inside
+  history, per-message metadata) is harder later if ever needed.
+- **Migrations: Supabase CLI**, not the dashboard SQL editor. Schema lives
+  as SQL files under `supabase/migrations/`, committed to git, applied via
+  `npx supabase db push`. Requires Docker Desktop installed and running
+  for local dev (`npx supabase start`); pushing migrations to the linked
+  remote project doesn't require a locally running database once the
+  project is linked with `npx supabase link`.
+  - Rule (from `SUPABASE_PLAN.md`): the Supabase Dashboard is only for
+    viewing data/logs/debugging — never used to hand-edit schema. Every
+    schema change is a new migration file, committed to git.
+  - Team workflow: after pulling latest changes, run `npx supabase db
+    push` before continuing development, so everyone's schema stays in
+    sync automatically.
+- **Folder structure: stays flat**, matching what's already built
+  (`index.ts`, `ai/`, `db/`, `types/`) and `CLAUDE.md`'s "keep v1 simple"
+  guidance. The `src/controllers/services/repositories/infrastructure`
+  layering from `SUPABASE_PLAN.md` is not adopted now — `db/` plays the
+  role of the repository layer.
+- **Naming: `travel_agent_id`**, not `ai_agent_id` — `travelAgentId`
+  identifies the human travel agency/consultant per `CLAUDE.md`, distinct
+  from the AI agent itself. Column names must match `types/chat.ts` field
+  names (snake_case equivalents).
+- **`travel_agent_id` type: `TEXT`, not `UUID`** — no `travel_agents`
+  table exists in this system yet, and the ID may originate from an
+  external CRM/admin tool. Revisit as `UUID` + FK if/when travel agents
+  become rows this system owns and generates IDs for.
+
+## Step 1 — Supabase schema via CLI migration
+
+- `npm install -D supabase`, then `npx supabase init` (creates
+  `supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql`).
+  Commit the whole `supabase/` folder to git.
+- `npx supabase link` to connect the CLI to the Supabase project created
+  earlier (needs the project ref from the dashboard URL; may prompt for
+  the DB password — this is the one place it's actually needed, separate
+  from the app's runtime credentials).
+- `npx supabase migration new create_conversations` and write:
+  ```sql
+  CREATE TABLE conversations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      channel TEXT NOT NULL,
+      travel_agent_id TEXT NOT NULL,
+      customer_id TEXT NOT NULL,
+      chat JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+      CONSTRAINT uq_conversation UNIQUE (channel, travel_agent_id, customer_id)
+  );
+  ```
+- `npx supabase db push` to apply it to the linked project.
+- Schema is intentionally minimal. Additional columns (`status`,
+  `summary`, `metadata`, etc.) can be introduced through future
+  migrations without changing the core conversation storage model.
 
 ## Step 2 — Conversation storage layer
 
 - Add `db/conversations.ts` with functions to:
-  - `getOrCreateConversation(channel, travelAgentId, customerId)`.
-  - `getMessages(conversationId)` — ordered history for agent context.
-  - `appendMessage(conversationId, role, content)`.
+  - `getOrCreateConversation(channel, travelAgentId, customerId)` — select
+    by the unique key, insert with `chat: []` if not found.
+  - `appendMessages(conversationId, newMessages)` — must be atomic and
+    safe under concurrent requests to the same conversation; concrete
+    mechanism decided at implementation time (see Decisions above).
 - No HTTP-layer changes yet — this is a pure data-access module, unit
   testable independent of Express/agent wiring.
 
@@ -44,10 +102,12 @@ state and be testable via a `.http` file in `/api-tests`.
 
 - Update `POST /chat` in `index.ts` to:
   1. Resolve the conversation via `(channel, travelAgentId, customerId)`.
-  2. Load prior messages and persist the incoming user message.
-  3. Pass full history into `run(tripAgent, ...)` (Agents SDK supports an
-     input array of role/content items instead of a single string).
-  4. Persist the assistant's reply and return it.
+  2. Read the existing `chat` array as history context.
+  3. Pass the conversation history to the agent in whatever format the
+     OpenAI Agents SDK expects at implementation time — the stored `chat`
+     format shouldn't be coupled to one SDK call shape in this plan.
+  4. Append both the user message and the assistant's reply to `chat` in
+     one `appendMessages` call, then return the reply.
 - Add/update `.http` test cases in `api-tests/` that send two sequential
   messages for the same `customerId` and confirm the second reply shows
   contextual awareness of the first.
@@ -89,6 +149,10 @@ state and be testable via a `.http` file in `/api-tests`.
   proper status codes (currently only one 400 check exists; no try/catch
   around `run()` or DB calls).
 - Confirm `.env` has all required vars documented (e.g. a `.env.example`).
+- Deployment flow: `Git → CI/CD → run supabase migrations → deploy
+  Express`. CI/CD should run `npx supabase db push` against the linked
+  project before (or as part of) deploying the app, so the schema is
+  never out of sync with what the deployed code expects.
 
 ---
 
