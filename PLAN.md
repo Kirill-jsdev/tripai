@@ -16,7 +16,9 @@ state and be testable via a `.http` file in `/api-tests`.
   persisted anywhere.
 - Supabase project created; `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
   are in `.env`; `db/supabaseClient.ts` exports a configured client.
-  No tables exist yet.
+- Step 1 done: `supabase/` initialized and linked to the project via the
+  CLI, `conversations` table created and granted to `service_role` via
+  migrations, verified reachable from the app's client.
 - No MCP servers or external APIs (flights, hotels) wired into the agent.
 - No escalation-to-human logic.
 
@@ -46,6 +48,12 @@ These were open forks between the original plan and ideas pulled from
   - Team workflow: after pulling latest changes, run `npx supabase db
     push` before continuing development, so everyone's schema stays in
     sync automatically.
+  - Gotcha (found while running Step 1): tables created via CLI
+    migrations don't automatically get Supabase's usual `service_role`
+    grants. Each new table needs an explicit
+    `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE <name> TO service_role;`
+    in its own migration, or the app's `supabase-js` client gets
+    `permission denied` even though the table exists.
 - **Folder structure: stays flat**, matching what's already built
   (`index.ts`, `ai/`, `db/`, `types/`) and `CLAUDE.md`'s "keep v1 simple"
   guidance. The `src/controllers/services/repositories/infrastructure`
