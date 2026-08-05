@@ -8,3 +8,25 @@ Content-Type: application/json
   "customerId": "user-123",
   "message": "Hello, how are you?"
 }
+
+### Conversation history — message 1 (tell the agent something to recall)
+POST http://localhost:3000/chat
+Content-Type: application/json
+
+{
+  "channel": "telegram",
+  "travelAgentId": "agent-001",
+  "customerId": "user-history-test",
+  "message": "My name is Kirill."
+}
+
+### Conversation history — message 2 (same customerId, should recall message 1)
+POST http://localhost:3000/chat
+Content-Type: application/json
+
+{
+  "channel": "telegram",
+  "travelAgentId": "agent-001",
+  "customerId": "user-history-test",
+  "message": "What is my name?"
+}

@@ -24,6 +24,14 @@ state and be testable via a `.http` file in `/api-tests`.
   (atomic via a Postgres RPC function, `append_conversation_messages`,
   added in its own migration). Both verified end-to-end against the
   remote database with a throwaway script (deleted after use).
+- Step 3 done: `POST /chat` in `index.ts` loads the conversation, converts
+  stored `ChatMessage[]` history into the Agents SDK's input shape via a
+  new `ai/history.ts` boundary (keeping the DB storage format decoupled
+  from the SDK's item shape), runs the agent with full history, and
+  appends both the user message and the reply back to `chat`. Verified by
+  running the server and sending two sequential requests for the same
+  `customerId` — the agent correctly recalled a name given in the first
+  message when asked about it in the second. `.http` test cases added.
 - No MCP servers or external APIs (flights, hotels) wired into the agent.
 - No escalation-to-human logic.
 
