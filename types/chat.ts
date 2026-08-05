@@ -7,4 +7,10 @@ export interface ChatRequest {
   message: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
 

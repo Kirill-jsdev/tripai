@@ -19,6 +19,11 @@ state and be testable via a `.http` file in `/api-tests`.
 - Step 1 done: `supabase/` initialized and linked to the project via the
   CLI, `conversations` table created and granted to `service_role` via
   migrations, verified reachable from the app's client.
+- Step 2 done: `db/conversations.ts` implements `getOrCreateConversation`
+  (idempotent, race-safe on the unique constraint) and `appendMessages`
+  (atomic via a Postgres RPC function, `append_conversation_messages`,
+  added in its own migration). Both verified end-to-end against the
+  remote database with a throwaway script (deleted after use).
 - No MCP servers or external APIs (flights, hotels) wired into the agent.
 - No escalation-to-human logic.
 
