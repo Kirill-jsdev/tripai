@@ -38,6 +38,37 @@ The AI agent must always receive the previous conversation so it can
 answer in context instead of treating every message as a new
 conversation.
 
+## Channel Architecture
+
+The backend provides one core AI agent, reachable through one internal
+chat handler, regardless of which platform a message came from. `POST
+/chat` is the channel-agnostic entry point to that handler: it accepts
+the generic `(channel, travelAgentId, customerId, message)` shape
+described above and knows nothing about Telegram, WhatsApp, or any
+other specific platform.
+
+Each supported platform is implemented as a thin **channel adapter**
+(e.g. `channels/telegram/`), whose only job is:
+
+-   Receiving that platform's inbound messages (e.g. a Telegram
+    webhook).
+-   Translating them into the internal chat request shape.
+-   Calling the shared chat handler directly (in-process, not
+    necessarily over HTTP).
+-   Translating the agent's reply back into that platform's outbound
+    message format (e.g. Telegram's `sendMessage`).
+-   Handling that platform's own account-linking (e.g. Telegram's
+    Business Connection feature), so an inbound message can be
+    attributed to the correct `travelAgentId`.
+
+Core logic (the agent, conversation storage, tools) never contains
+platform-specific branching. Adding a new channel means writing a new
+adapter, not modifying `/chat` or anything it depends on. The project
+starts with a Telegram adapter that we build and host ourselves — this
+is a full bot solution we provide, not just an API third parties
+integrate against — and additional channels are added the same way
+later.
+
 ## Conversation Storage
 
 Conversation history will be stored in Supabase (PostgreSQL).
