@@ -42,8 +42,22 @@ state and be testable via a `.http` file in `/api-tests`.
   request body, and `scripts/create-travel-agent.ts` issues keys.
   Verified end-to-end: missing/invalid key → 401, valid key → 200 with
   conversation history recalled correctly, and two agencies' keys with
-  the same `customerId` don't collide. `03_TELEGRAM_CHANNEL_PLAN.md` is
-  the next planned step.
+  the same `customerId` don't collide.
+- `03_TELEGRAM_CHANNEL_PLAN.md` implemented (code side): core logic
+  extracted into `chat/handleChat.ts` (`/chat` is now a thin wrapper);
+  `channels/telegram/` holds `telegramClient.ts` (Bot API wrapper),
+  `translate.ts` (`business_message` → `HandleChatInput`), and
+  `webhook.ts` (secret-token check, `business_connection` logging,
+  `business_message` handling); `travel_agents` gained
+  `telegram_business_connection_id`; `scripts/link-telegram-connection.ts`
+  links a connection to an agent. Verified with simulated webhook
+  payloads: missing/wrong secret → 401, unlinked connection → dropped
+  (logged, no agent call), linked connection → full round trip through
+  `handleChat` with the reply correctly persisted to `conversations`
+  (Telegram delivery itself not yet verified — no real bot token
+  configured). Still needed: a real `TELEGRAM_BOT_TOKEN` from BotFather
+  and a live end-to-end test via a real Business Connection (implementation
+  order step 6 in `03_TELEGRAM_CHANNEL_PLAN.md`).
 
 ## Decisions (resolved 2026-08-05)
 

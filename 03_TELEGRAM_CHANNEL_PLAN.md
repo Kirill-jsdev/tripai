@@ -153,9 +153,12 @@ implemented; noted here so it isn't a surprise blocker.
 
 ## Open questions
 
-- Async reply delivery (webhook ack now, `sendMessage` later) vs.
-  synchronous — depends on real observed agent latency; decide during
-  implementation, not planning.
+- ~~Async reply delivery (webhook ack now, `sendMessage` later) vs.
+  synchronous~~ — resolved during implementation: the webhook
+  acknowledges immediately (`200 OK`) before calling `handleChat`, and
+  `sendMessage` fires afterward, inside a `try/catch` so a failure
+  (e.g. Telegram API error) is logged rather than crashing the process
+  or affecting the already-sent ack.
 - What happens to a `travel_agents` row's linkage if a salesperson
   disconnects the Business Connection in Telegram (Telegram sends a
   `business_connection` update with `is_enabled: false`)? Does the bot

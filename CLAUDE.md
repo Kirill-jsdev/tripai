@@ -110,3 +110,15 @@ one chat endpoint, and persistent conversation history.
 **Testing**
 - For API endpoint testing we are using "REST Client" VS Code extension and the files with ".http" extension, located in /api-tests folder
 of this project. THe first part in the name is a method, and then the endpoint itself. THe name is dash separated
+
+**Documentation**
+- The `/docs` folder holds Markdown documentation for significant parts
+  of the application — operational runbooks, how a feature actually
+  works end-to-end, step-by-step procedures for things done manually
+  (e.g. connecting a new Telegram account to the bot). This is distinct
+  from the numbered root-level plan files (`02_AUTHENTICATION_PLAN.md`,
+  `03_TELEGRAM_CHANNEL_PLAN.md`, etc.), which capture the design/decision
+  process for a feature before or while it's built. `/docs` is where
+  the durable, "how do I actually do this" reference material lives
+  once a feature is working, and is expected to grow over time as more
+  parts of the application reach that point.
