@@ -4,16 +4,18 @@ import { run } from '@openai/agents';
 import { tripAgent } from './ai/agent.js';
 import { toAgentInput } from './ai/history.js';
 import { getOrCreateConversation, appendMessages } from './db/conversations.js';
+import { authenticate } from './middleware/authenticate.js';
 import type { ChatRequest } from './types/chat.js';
 
 const app = express();
 app.use(express.json());
 
-app.post('/chat', async (req, res) => {
-  const { channel, travelAgentId, customerId, message } = req.body as ChatRequest;
+app.post('/chat', authenticate, async (req, res) => {
+  const { channel, customerId, message } = req.body as ChatRequest;
+  const travelAgentId = req.travelAgentId!;
 
-  if (!channel || !travelAgentId || !customerId || !message) {
-    return res.status(400).json({ error: 'channel, travelAgentId, customerId and message are required' });
+  if (!channel || !customerId || !message) {
+    return res.status(400).json({ error: 'channel, customerId and message are required' });
   }
 
   const conversation = await getOrCreateConversation(channel, travelAgentId, customerId);

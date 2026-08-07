@@ -34,6 +34,16 @@ state and be testable via a `.http` file in `/api-tests`.
   message when asked about it in the second. `.http` test cases added.
 - No MCP servers or external APIs (flights, hotels) wired into the agent.
 - No escalation-to-human logic.
+- `02_AUTHENTICATION_PLAN.md` implemented: `travel_agents` table (one row
+  per salesperson/account, API key hashed at rest),
+  `conversations.travel_agent_id` is now a real `UUID` FK, `/chat`
+  requires `Authorization: Bearer <api_key>` (`middleware/authenticate.ts`)
+  and resolves `travelAgentId` server-side instead of trusting the
+  request body, and `scripts/create-travel-agent.ts` issues keys.
+  Verified end-to-end: missing/invalid key → 401, valid key → 200 with
+  conversation history recalled correctly, and two agencies' keys with
+  the same `customerId` don't collide. `03_TELEGRAM_CHANNEL_PLAN.md` is
+  the next planned step.
 
 ## Decisions (resolved 2026-08-05)
 

@@ -76,16 +76,24 @@ For a `business_message` update:
   `telegram_business_connection_id` matches the update's
   `business_connection_id`. No match → drop/log the message; there's no
   agent to attribute it to.
-- Build the internal chat request: `channel: 'telegram'`, the resolved
-  `travelAgentId`, `customerId` = the customer's Telegram user id,
-  `message` = the text content.
+- Build the input for the core handler: `channel: 'telegram'`, the
+  resolved `travelAgentId`, `customerId` = the customer's Telegram user
+  id, `message` = the text content. Note this is **not** the
+  `ChatRequest` type from `types/chat.ts` — per
+  `02_AUTHENTICATION_PLAN.md`, that type is the external `/chat` HTTP
+  body and has no `travelAgentId`. The extracted handler takes its own
+  input type (e.g. `HandleChatInput` in `chat/handleChat.ts`) that
+  *does* include `travelAgentId`, since in-process callers resolve it
+  themselves instead of relying on the API-key middleware.
 - Call the shared chat handler **directly, in-process** — not by making
   an HTTP call to `/chat`. This requires extracting the current inline
   logic in `index.ts`'s `POST /chat` handler into a plain function
-  (e.g. `handleChat(...)` in `chat/handleChat.ts`) that both the
-  `/chat` route and the Telegram adapter call. `/chat` stays as a thin
-  HTTP wrapper around it, still useful for `.http` testing and any
-  future direct API consumer.
+  (e.g. `handleChat(input: HandleChatInput)` in `chat/handleChat.ts`)
+  that both the `/chat` route and the Telegram adapter call. `/chat`
+  stays as a thin HTTP wrapper around it — parses `ChatRequest`, adds
+  the `travelAgentId` the auth middleware resolved, calls `handleChat`
+  — still useful for `.http` testing and any future direct API
+  consumer.
 
 ### 4. Sending replies
 

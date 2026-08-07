@@ -1,10 +1,33 @@
-### Test chat endpoint
+@apiKey = {{$dotenv TEST_TRAVEL_AGENT_API_KEY}}
+
+### Missing Authorization header — expect 401
 POST http://localhost:3000/chat
 Content-Type: application/json
 
 {
   "channel": "telegram",
-  "travelAgentId": "agent-001",
+  "customerId": "user-123",
+  "message": "Hello, how are you?"
+}
+
+### Invalid API key — expect 401
+POST http://localhost:3000/chat
+Content-Type: application/json
+Authorization: Bearer not-a-real-key
+
+{
+  "channel": "telegram",
+  "customerId": "user-123",
+  "message": "Hello, how are you?"
+}
+
+### Test chat endpoint
+POST http://localhost:3000/chat
+Content-Type: application/json
+Authorization: Bearer {{apiKey}}
+
+{
+  "channel": "telegram",
   "customerId": "user-123",
   "message": "Hello, how are you?"
 }
@@ -12,10 +35,10 @@ Content-Type: application/json
 ### Conversation history — message 1 (tell the agent something to recall)
 POST http://localhost:3000/chat
 Content-Type: application/json
+Authorization: Bearer {{apiKey}}
 
 {
   "channel": "telegram",
-  "travelAgentId": "agent-001",
   "customerId": "user-history-test",
   "message": "My name is Kirill."
 }
@@ -23,10 +46,11 @@ Content-Type: application/json
 ### Conversation history — message 2 (same customerId, should recall message 1)
 POST http://localhost:3000/chat
 Content-Type: application/json
+Authorization: Bearer {{apiKey}}
 
 {
   "channel": "telegram",
-  "travelAgentId": "agent-001",
+ravelAgentId": "agent-001",
   "customerId": "user-history-test",
   "message": "What is my name?"
 }

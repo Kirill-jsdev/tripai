@@ -16,19 +16,29 @@ reach the URL can:
 
 ## Who is "the client" here
 
-For now, `/chat` is called **machine-to-machine only** — a Telegram bot
-backend (ours or the travel agency's) calling our API. There is no
-human-facing login/dashboard for travel agencies yet. That rules out
-Supabase Auth (GoTrue): it's built for interactive end-user sessions
-(email/password or OAuth, browser session, short-lived JWT + refresh
-token) and its main other benefit — Postgres Row Level Security — is
-moot here since `db/supabaseClient.ts` uses the `service_role` key,
-which bypasses RLS entirely.
+`/chat` is an HTTP entry point called by whatever isn't one of our own
+in-process channel adapters — today that's manual/`.http` testing, and
+in principle any future external caller. It is **not** how Telegram
+traffic reaches the agent: per `03_TELEGRAM_CHANNEL_PLAN.md`, the
+Telegram webhook runs in the same process and calls the core chat logic
+directly (a function call, not an HTTP request), so it never goes
+through `/chat` or this API key at all — it authenticates inbound
+Telegram traffic via Telegram's own webhook secret token instead, and
+resolves `travelAgentId` via the `business_connection_id` link rather
+than an API key. `/chat` still needs its own auth regardless, since it
+remains a real network-reachable HTTP endpoint once deployed.
+
+There is no human-facing login/dashboard for travel agencies. That
+rules out Supabase Auth (GoTrue): it's built for interactive end-user
+sessions (email/password or OAuth, browser session, short-lived JWT +
+refresh token) and its main other benefit — Postgres Row Level Security
+— is moot here since `db/supabaseClient.ts` uses the `service_role`
+key, which bypasses RLS entirely.
 
 What fits instead: a single **long-lived API key per travel agent**,
-sent as a bearer token on every request. If a dashboard for travel
-agencies gets built later, Supabase Auth can be introduced then for
-*that* human login, separate from this machine-to-machine key.
+sent as a bearer token on every direct `/chat` request. If a dashboard
+for travel agencies gets built later, Supabase Auth can be introduced
+then for *that* human login, separate from this key.
 
 ## Design
 
@@ -102,9 +112,14 @@ attached to the request by middleware.
 - On success, attaches the resolved `travelAgentId` (the row's `id`) to
   the request (e.g. `req.travelAgentId`) for the route handler to use
   in place of the old `req.body.travelAgentId`.
-- Applied to `/chat` (and any future routes) via
-  `app.use('/chat', authenticate)` or as an explicit middleware arg on
-  the route.
+- Applied **narrowly to `/chat`** — e.g.
+  `app.post('/chat', authenticate, handler)` — not mounted globally
+  with `app.use(authenticate)`. This matters once
+  `03_TELEGRAM_CHANNEL_PLAN.md`'s webhook route exists: it uses a
+  completely different auth mechanism (Telegram's own secret token, no
+  bearer key), so it must not be caught by this middleware. Any other
+  route added later that expects a `travel_agents` API key can opt in
+  explicitly the same way `/chat` does — it's never the default.
 
 ### 5. Issuing keys: a one-off script, not an admin API
 
@@ -136,9 +151,17 @@ used for Steps 1–2 in `PLAN.md`), not a built endpoint:
 3. `scripts/create-travel-agent.ts` — issue a key for local testing.
 4. Auth middleware (e.g. `middleware/authenticate.ts`) + wire into
    `index.ts`.
-5. Update `types/chat.ts` (`ChatRequest` drops `travelAgentId`) and
-   `index.ts` (read `travelAgentId` from the authenticated request, not
-   the body).
+5. Update `types/chat.ts` (`ChatRequest` drops `travelAgentId` — it's
+   the shape of the HTTP request body only). Note for
+   `03_TELEGRAM_CHANNEL_PLAN.md`: once `handleChat` is extracted from
+   `index.ts`, its internal input type is *not* `ChatRequest` — it must
+   still include `travelAgentId`, since in-process callers like the
+   Telegram adapter resolve it themselves (via
+   `business_connection_id`, not an API key) and pass it in directly.
+   `index.ts`'s `/chat` handler becomes the one place that bridges the
+   two: read `travelAgentId` off the authenticated request (not
+   `req.body`) and pass it into `handleChat` alongside the rest of the
+   body.
 6. Update `.http` tests; verify end-to-end with a generated key.
 
 ## Open questions
